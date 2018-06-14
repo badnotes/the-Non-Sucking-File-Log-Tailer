@@ -1,5 +1,7 @@
 package org.ankburov.logtailer;
 
+import java.util.List;
+
 /**
  * LogTailerListener interface. Implement this interface to create listener object
  */
@@ -12,7 +14,7 @@ public interface LogTailerListener {
     /**
      * Method handles with response from tailer
      */
-    void update(String line);
+    void update(List<String> lines);
 
     /**
      * Method handles any exception, except IOException (file not found)

@@ -3,7 +3,9 @@ package org.ankburov.logtailer;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -29,9 +31,8 @@ import java.util.concurrent.TimeUnit;
  * new Thread(tailer).start()  Mark thread as a daemon thread, if you need.
  */
 public class LogTailer implements Runnable {
-    Set<LogTailerListener> listeners = new HashSet<LogTailerListener>();
+    private Set<LogTailerListener> listeners = new HashSet<LogTailerListener>();
     private File file;
-    private long startTime;
     private long timeoutUntilInterrupt;
     private int sleepTimer;
     private boolean isStopped;
@@ -58,21 +59,28 @@ public class LogTailer implements Runnable {
     /**
      * Runnable method fo log tailer
      */
+    @Override
     public void run() {
         /*start of thread*/
-        startTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
         isStopped = false;
         isChanged = false;
-        String line;
         InputStream is = null;
+        List<String> lines = new ArrayList<>();
         try {
             is = Files.newInputStream(file.toPath(), StandardOpenOption.DSYNC);
             InputStreamReader reader = new InputStreamReader(is, "UTF-8");
             BufferedReader lineReader = new BufferedReader(reader);
             // if tailer is not stopped, process all files
             while (!isStopped && file.exists()) {
-                line = lineReader.readLine();
-                if (line != null) {
+                String line = lineReader.readLine();
+                lines.add(line);
+                long now = System.currentTimeMillis();
+                // read more lines at first
+                if (!lines.isEmpty() && line != null && now - startTime < sleepTimer){
+                    continue;
+                }
+                if (!lines.isEmpty()) {
                     setChanged();
                 } else {
                     try {
@@ -85,7 +93,8 @@ public class LogTailer implements Runnable {
                         notifyListenersAboutException(e);
                     }
                 }
-                notifyListeners(line);
+                notifyListeners(new ArrayList<>(lines));
+                lines.clear();
             }
             throw new RuntimeException("File has been removed");
         } catch (NullPointerException e) {
@@ -174,7 +183,7 @@ public class LogTailer implements Runnable {
      *
      * @param line - new string in tailing file
      */
-    public void notifyListeners(String line) {
+    public void notifyListeners(List<String> line) {
         if (isChanged) {
             for (LogTailerListener listener : listeners) {
                 listener.update(line);
